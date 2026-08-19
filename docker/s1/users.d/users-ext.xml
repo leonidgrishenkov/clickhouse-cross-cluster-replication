@@ -1,0 +1,60 @@
+<clickhouse>
+    <!-- S1a: full-peer default profile for ext replicas (baseline, no restriction) -->
+    <profiles>
+        <default>
+            <max_memory_usage>2000000000</max_memory_usage>
+        </default>
+        <!-- S1b: "follower-only" tuned profile.
+             Verified to exist in 25.8 via system.merge_tree_settings /
+             system.settings on the running container (see report.md):
+               - always_fetch_merged_part (merge_tree setting, per-table, set via
+                 ALTER TABLE ... MODIFY SETTING or at CREATE time; NOT a user
+                 profile setting, so it is applied in bootstrap.sql on ext tables,
+                 not here. Listed here for documentation only.)
+               - replicated_can_become_leader (same: per-table merge_tree setting)
+             Settings below ARE genuine per-user/profile settings: -->
+        <ext_readonly>
+            <max_memory_usage>1500000000</max_memory_usage>
+            <max_execution_time>30</max_execution_time>
+            <max_concurrent_queries_for_user>10</max_concurrent_queries_for_user>
+            <readonly>1</readonly>
+        </ext_readonly>
+    </profiles>
+    <users>
+        <default>
+            <password></password>
+            <networks><ip>::/0</ip></networks>
+            <profile>default</profile>
+            <quota>default</quota>
+            <access_management>1</access_management>
+        </default>
+        <ext_reader>
+            <password>ext_reader_pw_change_me</password>
+            <networks><ip>::/0</ip></networks>
+            <profile>ext_readonly</profile>
+            <quota>ext_quota</quota>
+        </ext_reader>
+    </users>
+    <quotas>
+        <default>
+            <interval>
+                <duration>3600</duration>
+                <queries>0</queries>
+                <errors>0</errors>
+                <result_rows>0</result_rows>
+                <read_rows>0</read_rows>
+                <execution_time>0</execution_time>
+            </interval>
+        </default>
+        <ext_quota>
+            <interval>
+                <duration>60</duration>
+                <queries>1000</queries>
+                <errors>100</errors>
+                <result_rows>50000000</result_rows>
+                <read_rows>500000000</read_rows>
+                <execution_time>600</execution_time>
+            </interval>
+        </ext_quota>
+    </quotas>
+</clickhouse>

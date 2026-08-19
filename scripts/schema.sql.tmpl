@@ -1,0 +1,39 @@
+-- Test data schema: mobile game telemetry
+-- Applied identically on main cluster (as ReplicatedMergeTree via ON CLUSTER)
+-- and referenced by scenario-specific bootstrap scripts for the external side.
+
+-- events: MergeTree family, partitioned by day, ~10 columns incl. Map/Nullable/LowCardinality
+CREATE TABLE IF NOT EXISTS {db}.events ON CLUSTER '{cluster}'
+(
+    app_id            LowCardinality(String),
+    event_type        LowCardinality(String),
+    user_id           UInt64,
+    event_time        DateTime,
+    session_id        UUID,
+    device_os         LowCardinality(String),
+    country           LowCardinality(String),
+    revenue_usd       Nullable(Decimal(10,2)),
+    props             Map(String, String),
+    ingested_at       DateTime DEFAULT now()
+)
+ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/{db}/events', '{replica}')
+PARTITION BY toYYYYMMDD(event_time)
+ORDER BY (app_id, event_type, user_id, event_time)
+TTL event_time + INTERVAL 90 DAY;
+
+-- users_profile: ReplacingMergeTree(version) to test divergence between clusters
+-- before FINAL is applied (independent merges on each side may keep stale rows
+-- visible for different lengths of time without FINAL).
+CREATE TABLE IF NOT EXISTS {db}.users_profile ON CLUSTER '{cluster}'
+(
+    user_id           UInt64,
+    app_id            LowCardinality(String),
+    first_seen        DateTime,
+    last_seen         DateTime,
+    country           LowCardinality(String),
+    total_revenue_usd Decimal(12,2),
+    level             UInt32,
+    version           UInt64
+)
+ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/{db}/users_profile', '{replica}', version)
+ORDER BY (app_id, user_id);

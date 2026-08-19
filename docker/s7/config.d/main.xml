@@ -1,0 +1,17 @@
+<clickhouse>
+    <listen_host>0.0.0.0</listen_host>
+    <listen_host>::</listen_host>
+    <path>/var/lib/clickhouse/</path>
+    <tmp_path>/var/lib/clickhouse/tmp/</tmp_path>
+    <zookeeper>
+        <node><host>keeper-main-1</host><port>9181</port></node>
+    </zookeeper>
+    <macros>
+        <shard>1</shard>
+        <replica>main_r1</replica>
+    </macros>
+    <interserver_http_credentials>
+        <user>interserver</user>
+        <password>s7_interserver_secret_change_me</password>
+    </interserver_http_credentials>
+</clickhouse>

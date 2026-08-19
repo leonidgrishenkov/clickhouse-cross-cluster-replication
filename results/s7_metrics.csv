@@ -1,0 +1,11 @@
+scenario,metric,value,unit,notes
+S7,fetch_partition_historical,CONFIRMED,boolean,"FETCH PARTITION + ATTACH of closed partition (3121 rows) matched main exactly, 0.25s wall time"
+S7,fetch_partition_live,CONFIRMED,boolean,"FETCH+ATTACH of still-receiving-inserts partition (110479 rows) matched main at that instant"
+S7,refresh_cycle_idempotent_when_atomic,YES,boolean,"FETCH immediately followed by ATTACH in same cycle correctly picks up deltas without duplication"
+S7,refresh_cycle_pitfall,FAILS_ON_INTERRUPTION,boolean,"if FETCH is not immediately consumed by ATTACH, next FETCH fails PARTITION_ALREADY_EXISTS -- detached part blocks retry"
+S7,recovery_from_stuck_detached_part,DROP_DETACHED_PARTITION,recipe,"requires explicit allow_drop_detached=1 setting -- disabled by default (SUPPORT_IS_DISABLED)"
+S7,auxiliary_zookeepers_mechanism,CONFIRMED,boolean,"ext reads main's Keeper znode tree via auxiliary_zookeepers config without ever registering as a replica"
+S7,replica_set_membership,NONE,boolean,"ext never appears in system.replicas on main -- no SYSTEM DROP REPLICA cleanup ever needed"
+S7,coupling_channels,2,count,"Keeper client port (read-only znode access) + interserver HTTP (part pull) -- both ext-initiated"
+S7,network_model,pull_ext_initiates,description,"same security-friendly initiator direction as S6"
+S7,isolation_test_result,SAME_AS_S1_S3,boolean,"ext can reach main directly over the shared fetch network -- required for the interserver pull, not a topology bug; needs firewall enforcement in production"

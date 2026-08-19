@@ -1,0 +1,10 @@
+scenario,metric,value,unit,notes
+S9,main_query_latency_baseline,0.046,seconds,"before ext-side query bomb"
+S9,main_query_latency_during_bomb,0.887-1.498,seconds,"5 samples across ~35s of 6x concurrent ext-side sort-heavy queries over 5M rows"
+S9,main_query_latency_degradation_factor,20-33x,ratio,"latency spike relative to baseline"
+S9,main_query_latency_after_bomb,0.092,seconds,"first sample post-bomb, settling back toward 0.05s baseline"
+S9,resource_isolation,NONE,boolean,"ext queries execute ON main's CPU/memory/IO directly -- no process boundary"
+S9,write_isolation,NONE,boolean,"INSERT via ext's Distributed table succeeds and reaches main within 2s, default blank-password user"
+S9,ext_functionality_when_main_down,ZERO,boolean,"ALL_CONNECTION_TRIES_FAILED -- ext holds no local data at all, 100% dependent on main being reachable"
+S9,resilience_to_main_failure,NONE,boolean,"diametric opposite of every other scenario -- ext provides zero standalone value"
+S9,operational_complexity,LOWEST,rank,"simplest possible topology -- exactly why teams default to it despite zero isolation"

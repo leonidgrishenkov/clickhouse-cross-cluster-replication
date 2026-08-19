@@ -1,0 +1,73 @@
+# S7: ALTER TABLE ... FETCH PARTITION FROM + ATTACH. External node is NOT a
+# replica -- it pulls parts itself on a schedule via the interserver HTTP
+# protocol, reading the source's Keeper path for part metadata but attaching
+# fetched parts locally without ever registering as a member of the replica
+# set. Reuses the S6-style fully-separated main/ext topology (no shared
+# Keeper needed for this mechanism -- FETCH PARTITION only needs read access
+# to the source table's Keeper znode tree + interserver HTTP to source nodes).
+
+networks:
+  net-main:
+    name: s7-net-main
+    driver: bridge
+  net-ext:
+    name: s7-net-ext
+    driver: bridge
+  net-fetch:
+    name: s7-net-fetch
+    driver: bridge
+
+services:
+  keeper-main-1:
+    image: clickhouse/clickhouse-keeper:25.8.30.16
+    container_name: s7-keeper-main-1
+    hostname: keeper-main-1
+    networks: [net-main, net-fetch]
+    volumes:
+      - ../common/keeper-single/keeper_single.xml:/etc/clickhouse-keeper/keeper_config.d/keeper.xml:ro
+    mem_limit: 300m
+    cpus: 0.5
+
+  ch-main:
+    image: clickhouse/clickhouse-server:25.8.30.16
+    container_name: s7-ch-main
+    hostname: ch-main
+    networks: [net-main, net-fetch]
+    depends_on: [keeper-main-1]
+    volumes:
+      - ./config.d/main.xml:/etc/clickhouse-server/config.d/main.xml:ro
+      - ./users.d/users.xml:/etc/clickhouse-server/users.d/users.xml:ro
+      - main-data:/var/lib/clickhouse
+    mem_limit: 1200m
+    cpus: 1.5
+    ulimits:
+      nofile: 262144
+
+  keeper-ext-1:
+    image: clickhouse/clickhouse-keeper:25.8.30.16
+    container_name: s7-keeper-ext-1
+    hostname: keeper-ext-1
+    networks: [net-ext]
+    volumes:
+      - ../common/keeper-single/keeper_single.xml:/etc/clickhouse-keeper/keeper_config.d/keeper.xml:ro
+    mem_limit: 300m
+    cpus: 0.5
+
+  ch-ext:
+    image: clickhouse/clickhouse-server:25.8.30.16
+    container_name: s7-ch-ext
+    hostname: ch-ext
+    networks: [net-ext, net-fetch]
+    depends_on: [keeper-ext-1]
+    volumes:
+      - ./config.d/ext.xml:/etc/clickhouse-server/config.d/ext.xml:ro
+      - ./users.d/users.xml:/etc/clickhouse-server/users.d/users.xml:ro
+      - ext-data:/var/lib/clickhouse
+    mem_limit: 900m
+    cpus: 1.0
+    ulimits:
+      nofile: 262144
+
+volumes:
+  main-data:
+  ext-data:

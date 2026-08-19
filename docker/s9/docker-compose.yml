@@ -1,0 +1,66 @@
+# S9 (anti-pattern baseline): External cluster holds ONLY Distributed tables
+# pointing at the main cluster. No replication, no local data at all on ext.
+# This is the reference point for "the cost of no isolation" -- every query
+# and every byte of data on the "external" side flows through / is computed
+# on the main cluster's nodes in real time.
+#
+# Network model: deliberately the OPPOSITE of every other scenario -- ext MUST
+# have full, unrestricted access to main's client port (9000) for its
+# Distributed table to function at all. There is no way to narrow this to a
+# specific port subset beyond "the ClickHouse native protocol port", and TLS/
+# auth aside, this is structurally a wide-open coupling.
+
+networks:
+  net-main:
+    name: s9-net-main
+    driver: bridge
+  net-ext:
+    name: s9-net-ext
+    driver: bridge
+  net-shared:
+    name: s9-net-shared
+    driver: bridge
+
+services:
+  keeper-main-1:
+    image: clickhouse/clickhouse-keeper:25.8.30.16
+    container_name: s9-keeper-main-1
+    hostname: keeper-main-1
+    networks: [net-main]
+    volumes:
+      - ../common/keeper-single/keeper_single.xml:/etc/clickhouse-keeper/keeper_config.d/keeper.xml:ro
+    mem_limit: 300m
+    cpus: 0.5
+
+  ch-main:
+    image: clickhouse/clickhouse-server:25.8.30.16
+    container_name: s9-ch-main
+    hostname: ch-main
+    networks: [net-main, net-shared]
+    depends_on: [keeper-main-1]
+    volumes:
+      - ./config.d/main.xml:/etc/clickhouse-server/config.d/main.xml:ro
+      - ./users.d/users.xml:/etc/clickhouse-server/users.d/users.xml:ro
+      - main-data:/var/lib/clickhouse
+    mem_limit: 1200m
+    cpus: 1.5
+    ulimits:
+      nofile: 262144
+
+  ch-ext:
+    image: clickhouse/clickhouse-server:25.8.30.16
+    container_name: s9-ch-ext
+    hostname: ch-ext
+    networks: [net-ext, net-shared]
+    volumes:
+      - ./config.d/ext.xml:/etc/clickhouse-server/config.d/ext.xml:ro
+      - ./users.d/users.xml:/etc/clickhouse-server/users.d/users.xml:ro
+      - ext-data:/var/lib/clickhouse
+    mem_limit: 900m
+    cpus: 1.0
+    ulimits:
+      nofile: 262144
+
+volumes:
+  main-data:
+  ext-data:

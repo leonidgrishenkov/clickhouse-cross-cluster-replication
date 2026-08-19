@@ -1,0 +1,79 @@
+# S3: Push via Materialized View -> Distributed pointing at the external cluster.
+#
+# main cluster: single-shard, single-node for simplicity (this scenario is about
+# the MV/Distributed push mechanism, not multi-shard fan-out, which S1 already
+# covers). ext cluster: single node, receives INSERTs pushed by the MV.
+#
+# Network model: main and ext are on separate networks (net-main, net-ext), with
+# ONE explicit shared network (net-push) carrying only the Distributed-table
+# INSERT traffic FROM main TO ext (main initiates; ext never connects back).
+# This is a push model -- the opposite direction of S6/S7's pull model -- and
+# that direction has direct consequences for firewall design (main must be
+# allowed to open OUTBOUND connections to ext, which is a bigger attack-surface
+# concession than the pull-only models).
+
+networks:
+  net-main:
+    name: s3-net-main
+    driver: bridge
+  net-ext:
+    name: s3-net-ext
+    driver: bridge
+  net-push:
+    name: s3-net-push
+    driver: bridge
+
+services:
+  keeper-main-1:
+    image: clickhouse/clickhouse-keeper:25.8.30.16
+    container_name: s3-keeper-main-1
+    hostname: keeper-main-1
+    networks: [net-main]
+    volumes:
+      - ../common/keeper-single/keeper_single.xml:/etc/clickhouse-keeper/keeper_config.d/keeper.xml:ro
+    mem_limit: 300m
+    cpus: 0.5
+
+  ch-main:
+    image: clickhouse/clickhouse-server:25.8.30.16
+    container_name: s3-ch-main
+    hostname: ch-main
+    networks: [net-main, net-push]
+    depends_on: [keeper-main-1]
+    volumes:
+      - ./config.d/main.xml:/etc/clickhouse-server/config.d/main.xml:ro
+      - ./users.d/users.xml:/etc/clickhouse-server/users.d/users.xml:ro
+      - main-data:/var/lib/clickhouse
+    mem_limit: 1200m
+    cpus: 1.5
+    ulimits:
+      nofile: 262144
+
+  keeper-ext-1:
+    image: clickhouse/clickhouse-keeper:25.8.30.16
+    container_name: s3-keeper-ext-1
+    hostname: keeper-ext-1
+    networks: [net-ext]
+    volumes:
+      - ../common/keeper-single/keeper_single.xml:/etc/clickhouse-keeper/keeper_config.d/keeper.xml:ro
+    mem_limit: 300m
+    cpus: 0.5
+
+  ch-ext:
+    image: clickhouse/clickhouse-server:25.8.30.16
+    container_name: s3-ch-ext
+    hostname: ch-ext
+    networks: [net-ext, net-push]
+    depends_on: [keeper-ext-1]
+    volumes:
+      - ./config.d/ext.xml:/etc/clickhouse-server/config.d/ext.xml:ro
+      - ./users.d/users.xml:/etc/clickhouse-server/users.d/users.xml:ro
+      - ext-data:/var/lib/clickhouse
+    mem_limit: 900m
+    cpus: 1.0
+    ulimits:
+      nofile: 262144
+
+volumes:
+  main-data:
+  ext-data:

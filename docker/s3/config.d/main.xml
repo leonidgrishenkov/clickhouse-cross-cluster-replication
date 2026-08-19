@@ -1,0 +1,27 @@
+<clickhouse>
+    <listen_host>0.0.0.0</listen_host>
+    <listen_host>::</listen_host>
+    <path>/var/lib/clickhouse/</path>
+    <tmp_path>/var/lib/clickhouse/tmp/</tmp_path>
+
+    <zookeeper>
+        <node><host>keeper-main-1</host><port>9181</port></node>
+    </zookeeper>
+
+    <macros>
+        <shard>1</shard>
+        <replica>main_r1</replica>
+    </macros>
+
+    <!-- Distributed table on main pointing at the EXTERNAL cluster's node.
+         This is the "push" mechanism: main's Distributed engine table (fed by
+         an MV insert trigger) opens outbound connections to ch-ext. -->
+    <remote_servers>
+        <ext_push_cluster>
+            <shard>
+                <internal_replication>false</internal_replication>
+                <replica><host>ch-ext</host><port>9000</port></replica>
+            </shard>
+        </ext_push_cluster>
+    </remote_servers>
+</clickhouse>

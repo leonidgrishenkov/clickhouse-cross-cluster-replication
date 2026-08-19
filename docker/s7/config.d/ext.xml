@@ -1,0 +1,30 @@
+<clickhouse>
+    <listen_host>0.0.0.0</listen_host>
+    <listen_host>::</listen_host>
+    <path>/var/lib/clickhouse/</path>
+    <tmp_path>/var/lib/clickhouse/tmp/</tmp_path>
+    <zookeeper>
+        <node><host>keeper-ext-1</host><port>9181</port></node>
+    </zookeeper>
+    <!-- Auxiliary ZooKeeper/Keeper cluster: this is the ONLY channel S7 needs
+         into the main side's coordination layer. It grants ext read access
+         to main's Keeper znode tree (needed to resolve FETCH PARTITION's
+         source path) WITHOUT ext ever registering as a replica there: no
+         znode is created under main's /clickhouse/tables/... by ext, unlike
+         S1. This is a deliberately narrower coupling than S1's shared
+         ensemble: ext can READ main's replica metadata but cannot affect
+         main's replication queue, mutations, or leadership at all. -->
+    <auxiliary_zookeepers>
+        <main_keeper>
+            <node><host>keeper-main-1</host><port>9181</port></node>
+        </main_keeper>
+    </auxiliary_zookeepers>
+    <macros>
+        <shard>1</shard>
+        <replica>ext_r1</replica>
+    </macros>
+    <interserver_http_credentials>
+        <user>interserver</user>
+        <password>s7_interserver_secret_change_me</password>
+    </interserver_http_credentials>
+</clickhouse>

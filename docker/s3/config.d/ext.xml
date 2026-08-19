@@ -1,0 +1,15 @@
+<clickhouse>
+    <listen_host>0.0.0.0</listen_host>
+    <listen_host>::</listen_host>
+    <path>/var/lib/clickhouse/</path>
+    <tmp_path>/var/lib/clickhouse/tmp/</tmp_path>
+
+    <zookeeper>
+        <node><host>keeper-ext-1</host><port>9181</port></node>
+    </zookeeper>
+
+    <macros>
+        <shard>1</shard>
+        <replica>ext_r1</replica>
+    </macros>
+</clickhouse>

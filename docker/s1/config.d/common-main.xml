@@ -1,0 +1,62 @@
+<clickhouse>
+    <listen_host>0.0.0.0</listen_host>
+    <listen_host>::</listen_host>
+    <path>/var/lib/clickhouse/</path>
+    <tmp_path>/var/lib/clickhouse/tmp/</tmp_path>
+
+    <zookeeper>
+        <node><host>keeper-1</host><port>9181</port></node>
+        <node><host>keeper-2</host><port>9181</port></node>
+        <node><host>keeper-3</host><port>9181</port></node>
+    </zookeeper>
+
+    <distributed_ddl>
+        <path>/clickhouse/task_queue/ddl_main</path>
+    </distributed_ddl>
+
+    <!-- interserver replication credentials: required so that only nodes that
+         know the secret can fetch/push parts over the interserver HTTP port.
+         This is one of the two "who can join the replica set" gates (the
+         other is knowing/using the same Keeper znode path). -->
+    <interserver_http_credentials>
+        <user>interserver</user>
+        <password>s1_interserver_secret_change_me</password>
+    </interserver_http_credentials>
+
+    <remote_servers>
+        <main_cluster>
+            <shard>
+                <internal_replication>true</internal_replication>
+                <replica><host>ch-main-s1r1</host><port>9000</port></replica>
+                <replica><host>ch-main-s1r2</host><port>9000</port></replica>
+            </shard>
+            <shard>
+                <internal_replication>true</internal_replication>
+                <replica><host>ch-main-s2r1</host><port>9000</port></replica>
+                <replica><host>ch-main-s2r2</host><port>9000</port></replica>
+            </shard>
+        </main_cluster>
+        <!--
+          "all_nodes_ddl" deliberately includes the ext nodes too. It exists
+          ONLY to test the documented DDL-propagation fix (S1 "DDL" bullet):
+          ON CLUSTER all_nodes_ddl reaches ext nodes as well as main nodes.
+          Using it is an explicit, recorded isolation trade-off: main node
+          config now names ext hostnames. Not used by default; only invoked
+          in the DDL-propagation test in report.md.
+        -->
+        <all_nodes_ddl>
+            <shard>
+                <internal_replication>true</internal_replication>
+                <replica><host>ch-main-s1r1</host><port>9000</port></replica>
+                <replica><host>ch-main-s1r2</host><port>9000</port></replica>
+                <replica><host>ch-ext-s1r1</host><port>9000</port></replica>
+            </shard>
+            <shard>
+                <internal_replication>true</internal_replication>
+                <replica><host>ch-main-s2r1</host><port>9000</port></replica>
+                <replica><host>ch-main-s2r2</host><port>9000</port></replica>
+                <replica><host>ch-ext-s2r1</host><port>9000</port></replica>
+            </shard>
+        </all_nodes_ddl>
+    </remote_servers>
+</clickhouse>

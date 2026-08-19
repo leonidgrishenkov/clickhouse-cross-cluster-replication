@@ -1,0 +1,114 @@
+# S6: BACKUP TABLE ... TO S3(...) with base_backup, then RESTORE on the external cluster.
+#
+# Network model: main and ext are on ENTIRELY SEPARATE docker networks with NO
+# direct connectivity to each other at all. The only shared component is the
+# MinIO bucket, reachable from both sides. This is the candidate for maximum
+# isolation: neither side can open a client connection, Keeper session, or
+# interserver HTTP connection to the other; the bucket is the sole contact
+# point, and it is one-way in the sense that "ext" only needs READ credentials
+# on the backup prefix (write-side backup creation from main uses separate
+# write credentials) -- tested and documented in report.md.
+#
+# Declared "holes":
+#   - tcp/9000 (MinIO S3 API) ch-main-* -> minio   (write backups)
+#   - tcp/9000 (MinIO S3 API) ch-ext-*  -> minio   (read backups / restore)
+#   No direct ch-main-* <-> ch-ext-* channel exists in this topology at all.
+
+networks:
+  net-main:
+    name: s6-net-main
+    driver: bridge
+  net-ext:
+    name: s6-net-ext
+    driver: bridge
+  net-s3-main:
+    name: s6-net-s3-main
+    driver: bridge
+  net-s3-ext:
+    name: s6-net-s3-ext
+    driver: bridge
+
+services:
+  keeper-main-1:
+    image: clickhouse/clickhouse-keeper:25.8.30.16
+    container_name: s6-keeper-main-1
+    hostname: keeper-main-1
+    networks: [net-main]
+    volumes:
+      - ../common/keeper-single/keeper_single.xml:/etc/clickhouse-keeper/keeper_config.d/keeper.xml:ro
+    mem_limit: 300m
+    cpus: 0.5
+
+  ch-main:
+    image: clickhouse/clickhouse-server:25.8.30.16
+    container_name: s6-ch-main
+    hostname: ch-main
+    networks: [net-main, net-s3-main]
+    depends_on: [keeper-main-1]
+    volumes:
+      - ./config.d/main.xml:/etc/clickhouse-server/config.d/main.xml:ro
+      - ./users.d/users.xml:/etc/clickhouse-server/users.d/users.xml:ro
+      - main-data:/var/lib/clickhouse
+    mem_limit: 1200m
+    cpus: 1.5
+    ulimits:
+      nofile: 262144
+
+  keeper-ext-1:
+    image: clickhouse/clickhouse-keeper:25.8.30.16
+    container_name: s6-keeper-ext-1
+    hostname: keeper-ext-1
+    networks: [net-ext]
+    volumes:
+      - ../common/keeper-single/keeper_single.xml:/etc/clickhouse-keeper/keeper_config.d/keeper.xml:ro
+    mem_limit: 300m
+    cpus: 0.5
+
+  ch-ext:
+    image: clickhouse/clickhouse-server:25.8.30.16
+    container_name: s6-ch-ext
+    hostname: ch-ext
+    networks: [net-ext, net-s3-ext]
+    depends_on: [keeper-ext-1]
+    volumes:
+      - ./config.d/ext.xml:/etc/clickhouse-server/config.d/ext.xml:ro
+      - ./users.d/users.xml:/etc/clickhouse-server/users.d/users.xml:ro
+      - ext-data:/var/lib/clickhouse
+    mem_limit: 900m
+    cpus: 1.0
+    ulimits:
+      nofile: 262144
+
+  minio:
+    image: minio/minio:latest
+    container_name: s6-minio
+    hostname: minio
+    # Dual-homed on BOTH s3 networks so each ClickHouse side can reach it,
+    # while ch-main and ch-ext themselves are NOT on a shared network and
+    # therefore cannot reach or resolve each other. This is the corrected
+    # topology after the isolation-test finding in LOG.md (S6 section):
+    # sharing one "S3 access" network between main and ext gave them full
+    # client-port connectivity to each other, defeating the "bucket is the
+    # only point of contact" design goal.
+    networks: [net-s3-main, net-s3-ext]
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    command: server /data --console-address ":9090"
+    mem_limit: 512m
+    cpus: 0.5
+    volumes:
+      - minio-data:/data
+
+  mc:
+    image: minio/mc:latest
+    container_name: s6-mc
+    networks: [net-s3-main]
+    depends_on: [minio]
+    entrypoint: ["sh", "-c", "sleep infinity"]
+    mem_limit: 128m
+
+volumes:
+  main-data:
+  ext-data:
+  minio-data:

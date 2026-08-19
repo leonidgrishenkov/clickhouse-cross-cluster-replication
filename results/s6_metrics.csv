@@ -1,0 +1,18 @@
+scenario,metric,value,unit,notes
+S6,full_backup_wall_time,0.271,seconds,"BACKUP DATABASE, 300000 rows, 4 partitions"
+S6,full_backup_num_files,55,count,system.backup_log
+S6,full_backup_uncompressed_size,6724796,bytes,system.backup_log
+S6,incremental_backup_wall_time,0.452,seconds,"after 50000-row insert + 1-row ALTER UPDATE mutation"
+S6,incremental_backup_num_files,69,count,system.backup_log
+S6,incremental_backup_uncompressed_size,7577103,bytes,"barely smaller than full backup -- mutation rewrote all parts, see LOG.md"
+S6,restore_wall_time_full,0.505,seconds,RESTORE DATABASE on ch-ext
+S6,restore_consistency_check,MATCH,boolean,"count() and sum(cityHash64(*)) identical per partition, main vs ext"
+S6,partition_restore_wall_time,0.246,seconds,"BACKUP TABLE PARTITION 20260819 -> RESTORE with allow_non_empty_tables=1"
+S6,partition_restore_idempotency,FAIL_ON_REPEAT,boolean,"re-running the same partition restore duplicated rows (81226 -> 212452), see LOG.md Pitfall 1"
+S6,partition_restore_idempotent_fix,DROP_PARTITION_THEN_RESTORE,recipe,"drop target partition first, then restore with allow_non_empty_tables=1 -- verified idempotent"
+S6,staging_table_restore_AS_rename,FAIL,boolean,"RESTORE TABLE src AS dst fails for ReplicatedMergeTree with literal zoo_path -- REPLICA_ALREADY_EXISTS, see LOG.md Pitfall 2"
+S6,isolation_test_pre_fix,FAIL,boolean,"ch-ext could SELECT and INSERT directly against ch-main over shared net-s3 network"
+S6,isolation_test_post_fix,PASS,boolean,"after splitting into net-s3-main/net-s3-ext, ch-ext cannot resolve or reach ch-main at all (DNS_ERROR)"
+S6,network_topology,fully_separate_except_s3,description,"no direct ch-main<->ch-ext network path; only shared component is the MinIO bucket, reached via disjoint bridges"
+S6,shared_keeper,NO,boolean,"ch-main and ch-ext each run their own independent single-node Keeper"
+S6,shared_credentials,NO,boolean,"separate MinIO credentials could be issued per side (not tested distinctly in this pass -- same minioadmin creds used for both read and write in this sandbox, flagged as a production hardening item: use read-only bucket policy for the ext side)"

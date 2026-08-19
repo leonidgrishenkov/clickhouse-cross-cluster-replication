@@ -1,0 +1,181 @@
+# S1: External nodes as additional replicas of the same ReplicatedMergeTree tables
+#
+# Network model (the "holes in the firewall"):
+#   net-main : main cluster internal network (keeper-1/2/3, ch-main-*)
+#   net-ext  : external cluster internal network (ch-ext-*) -- this is where
+#              "external users" connect for ad-hoc queries. Main nodes are NOT
+#              attached here, so external users cannot reach main nodes' client
+#              ports (9000/8123) at all -- verified in scripts/isolation_test.sh.
+#   net-repl : the explicit, narrow channel between the two groups. Only
+#              keeper-1/2/3 and ch-main-* and ch-ext-* attach here. In this
+#              sandbox all ports are reachable on a shared bridge network by
+#              default; we additionally apply iptables rules on the host
+#              (scripts/firewall_s1.sh) restricting net-repl cross traffic to
+#              the documented port list only, then verify the restriction with
+#              nc/curl from the ext side. This gives a literally-tested
+#              allow-list, not just a diagram.
+#
+# Declared "holes" (verified again in report.md / results/s1_ports.txt):
+#   - tcp/9181  ch-ext-* -> keeper-1/2/3      (Keeper client protocol; ext initiates)
+#   - tcp/9009  ch-ext-* <-> ch-main-*        (interserver HTTP part fetch; direction measured empirically)
+#   - tcp/9234  keeper-1/2/3 <-> keeper-1/2/3 (Keeper raft; ext keeper not part of this quorum in S1a/b)
+#
+# S1a = full-peer replicas (baseline). S1b = follower-only tuned via users.d/profile.
+# S1c = swap keeper-ext-1 for the ext nodes (separate ensemble) to show it breaks.
+
+networks:
+  net-main:
+    name: s1-net-main
+    driver: bridge
+  net-ext:
+    name: s1-net-ext
+    driver: bridge
+  net-repl:
+    name: s1-net-repl
+    driver: bridge
+
+services:
+  keeper-1:
+    image: clickhouse/clickhouse-keeper:25.8.30.16
+    container_name: s1-keeper-1
+    hostname: keeper-1
+    networks: [net-main, net-repl]
+    volumes:
+      - ../common/keeper/keeper_1.xml:/etc/clickhouse-keeper/keeper_config.d/keeper.xml:ro
+    mem_limit: 300m
+    cpus: 0.5
+
+  keeper-2:
+    image: clickhouse/clickhouse-keeper:25.8.30.16
+    container_name: s1-keeper-2
+    hostname: keeper-2
+    networks: [net-main, net-repl]
+    volumes:
+      - ../common/keeper/keeper_2.xml:/etc/clickhouse-keeper/keeper_config.d/keeper.xml:ro
+    mem_limit: 300m
+    cpus: 0.5
+
+  keeper-3:
+    image: clickhouse/clickhouse-keeper:25.8.30.16
+    container_name: s1-keeper-3
+    hostname: keeper-3
+    networks: [net-main, net-repl]
+    volumes:
+      - ../common/keeper/keeper_3.xml:/etc/clickhouse-keeper/keeper_config.d/keeper.xml:ro
+    mem_limit: 300m
+    cpus: 0.5
+
+  keeper-ext-1:
+    image: clickhouse/clickhouse-keeper:25.8.30.16
+    container_name: s1-keeper-ext-1
+    hostname: keeper-ext-1
+    networks: [net-ext, net-repl]
+    volumes:
+      - ../common/keeper-ext/keeper_ext_1.xml:/etc/clickhouse-keeper/keeper_config.d/keeper.xml:ro
+    mem_limit: 300m
+    cpus: 0.5
+    profiles: ["s1c"]   # only started for the S1c split-keeper experiment
+
+  ch-main-s1r1:
+    image: clickhouse/clickhouse-server:25.8.30.16
+    container_name: s1-ch-main-s1r1
+    hostname: ch-main-s1r1
+    networks: [net-main, net-repl]
+    depends_on: [keeper-1, keeper-2, keeper-3]
+    volumes:
+      - ./config.d/common-main.xml:/etc/clickhouse-server/config.d/common-main.xml:ro
+      - ./config.d/macros-main-s1r1.xml:/etc/clickhouse-server/config.d/macros.xml:ro
+      - ./users.d/users-main.xml:/etc/clickhouse-server/users.d/users.xml:ro
+      - main-s1r1-data:/var/lib/clickhouse
+    mem_limit: 900m
+    cpus: 1.0
+    ulimits:
+      nofile: 262144
+
+  ch-main-s1r2:
+    image: clickhouse/clickhouse-server:25.8.30.16
+    container_name: s1-ch-main-s1r2
+    hostname: ch-main-s1r2
+    networks: [net-main, net-repl]
+    depends_on: [keeper-1, keeper-2, keeper-3]
+    volumes:
+      - ./config.d/common-main.xml:/etc/clickhouse-server/config.d/common-main.xml:ro
+      - ./config.d/macros-main-s1r2.xml:/etc/clickhouse-server/config.d/macros.xml:ro
+      - ./users.d/users-main.xml:/etc/clickhouse-server/users.d/users.xml:ro
+      - main-s1r2-data:/var/lib/clickhouse
+    mem_limit: 900m
+    cpus: 1.0
+    ulimits:
+      nofile: 262144
+
+  ch-main-s2r1:
+    image: clickhouse/clickhouse-server:25.8.30.16
+    container_name: s1-ch-main-s2r1
+    hostname: ch-main-s2r1
+    networks: [net-main, net-repl]
+    depends_on: [keeper-1, keeper-2, keeper-3]
+    volumes:
+      - ./config.d/common-main.xml:/etc/clickhouse-server/config.d/common-main.xml:ro
+      - ./config.d/macros-main-s2r1.xml:/etc/clickhouse-server/config.d/macros.xml:ro
+      - ./users.d/users-main.xml:/etc/clickhouse-server/users.d/users.xml:ro
+      - main-s2r1-data:/var/lib/clickhouse
+    mem_limit: 900m
+    cpus: 1.0
+    ulimits:
+      nofile: 262144
+
+  ch-main-s2r2:
+    image: clickhouse/clickhouse-server:25.8.30.16
+    container_name: s1-ch-main-s2r2
+    hostname: ch-main-s2r2
+    networks: [net-main, net-repl]
+    depends_on: [keeper-1, keeper-2, keeper-3]
+    volumes:
+      - ./config.d/common-main.xml:/etc/clickhouse-server/config.d/common-main.xml:ro
+      - ./config.d/macros-main-s2r2.xml:/etc/clickhouse-server/config.d/macros.xml:ro
+      - ./users.d/users-main.xml:/etc/clickhouse-server/users.d/users.xml:ro
+      - main-s2r2-data:/var/lib/clickhouse
+    mem_limit: 900m
+    cpus: 1.0
+    ulimits:
+      nofile: 262144
+
+  ch-ext-s1r1:
+    image: clickhouse/clickhouse-server:25.8.30.16
+    container_name: s1-ch-ext-s1r1
+    hostname: ch-ext-s1r1
+    networks: [net-ext, net-repl]
+    depends_on: [keeper-1, keeper-2, keeper-3]
+    volumes:
+      - ./config.d/common-ext.xml:/etc/clickhouse-server/config.d/common-ext.xml:ro
+      - ./config.d/macros-ext-s1r1.xml:/etc/clickhouse-server/config.d/macros.xml:ro
+      - ./users.d/users-ext.xml:/etc/clickhouse-server/users.d/users.xml:ro
+      - ext-s1r1-data:/var/lib/clickhouse
+    mem_limit: 700m
+    cpus: 1.0
+    ulimits:
+      nofile: 262144
+
+  ch-ext-s2r1:
+    image: clickhouse/clickhouse-server:25.8.30.16
+    container_name: s1-ch-ext-s2r1
+    hostname: ch-ext-s2r1
+    networks: [net-ext, net-repl]
+    depends_on: [keeper-1, keeper-2, keeper-3]
+    volumes:
+      - ./config.d/common-ext.xml:/etc/clickhouse-server/config.d/common-ext.xml:ro
+      - ./config.d/macros-ext-s2r1.xml:/etc/clickhouse-server/config.d/macros.xml:ro
+      - ./users.d/users-ext.xml:/etc/clickhouse-server/users.d/users.xml:ro
+      - ext-s2r1-data:/var/lib/clickhouse
+    mem_limit: 700m
+    cpus: 1.0
+    ulimits:
+      nofile: 262144
+
+volumes:
+  main-s1r1-data:
+  main-s1r2-data:
+  main-s2r1-data:
+  main-s2r2-data:
+  ext-s1r1-data:
+  ext-s2r1-data:

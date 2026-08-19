@@ -1,0 +1,38 @@
+<clickhouse>
+    <listen_host>0.0.0.0</listen_host>
+    <listen_host>::</listen_host>
+    <path>/var/lib/clickhouse/</path>
+    <tmp_path>/var/lib/clickhouse/tmp/</tmp_path>
+
+    <!-- S1a/S1b: shared Keeper with the main cluster (same ensemble).
+         For S1c this file is NOT changed; instead a separate override config
+         swaps this zookeeper block to point at keeper-ext-1 instead. See the
+         S1c section of report.md. -->
+    <zookeeper>
+        <node><host>keeper-1</host><port>9181</port></node>
+        <node><host>keeper-2</host><port>9181</port></node>
+        <node><host>keeper-3</host><port>9181</port></node>
+    </zookeeper>
+
+    <distributed_ddl>
+        <path>/clickhouse/task_queue/ddl_ext</path>
+    </distributed_ddl>
+
+    <interserver_http_credentials>
+        <user>interserver</user>
+        <password>s1_interserver_secret_change_me</password>
+    </interserver_http_credentials>
+
+    <remote_servers>
+        <ext_cluster>
+            <shard>
+                <internal_replication>true</internal_replication>
+                <replica><host>ch-ext-s1r1</host><port>9000</port></replica>
+            </shard>
+            <shard>
+                <internal_replication>true</internal_replication>
+                <replica><host>ch-ext-s2r1</host><port>9000</port></replica>
+            </shard>
+        </ext_cluster>
+    </remote_servers>
+</clickhouse>

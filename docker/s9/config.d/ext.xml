@@ -1,0 +1,19 @@
+<clickhouse>
+    <listen_host>0.0.0.0</listen_host>
+    <listen_host>::</listen_host>
+    <path>/var/lib/clickhouse/</path>
+    <tmp_path>/var/lib/clickhouse/tmp/</tmp_path>
+
+    <!-- ext holds NO Keeper connection at all: it has no replicated tables,
+         only Distributed tables pointing at main. This is the whole point of
+         S9: ext is a stateless query router with zero local data. -->
+
+    <remote_servers>
+        <main_from_ext>
+            <shard>
+                <internal_replication>false</internal_replication>
+                <replica><host>ch-main</host><port>9000</port></replica>
+            </shard>
+        </main_from_ext>
+    </remote_servers>
+</clickhouse>
