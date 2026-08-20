@@ -1,6 +1,0 @@
-<clickhouse>
-    <macros>
-        <shard>2</shard>
-        <replica>ext_r1</replica>
-    </macros>
-</clickhouse>

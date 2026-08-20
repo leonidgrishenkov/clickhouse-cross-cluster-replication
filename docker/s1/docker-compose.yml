@@ -156,26 +156,9 @@ services:
     ulimits:
       nofile: 262144
 
-  ch-ext-s2r1:
-    image: clickhouse/clickhouse-server:26.3.17.110
-    container_name: s1-ch-ext-s2r1
-    hostname: ch-ext-s2r1
-    networks: [net-ext, net-repl]
-    depends_on: [keeper-1, keeper-2, keeper-3]
-    volumes:
-      - ./config.d/common-ext.xml:/etc/clickhouse-server/config.d/common-ext.xml:ro
-      - ./config.d/macros-ext-s2r1.xml:/etc/clickhouse-server/config.d/macros.xml:ro
-      - ./users.d/users-ext.xml:/etc/clickhouse-server/users.d/users.xml:ro
-      - ext-s2r1-data:/var/lib/clickhouse
-    mem_limit: 700m
-    cpus: 1.0
-    ulimits:
-      nofile: 262144
-
 volumes:
   main-s1r1-data:
   main-s1r2-data:
   main-s2r1-data:
   main-s2r2-data:
   ext-s1r1-data:
-  ext-s2r1-data:
