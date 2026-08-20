@@ -10,7 +10,7 @@ CH_VERSION := 26.3.17.110
 s1-up:
 	cd docker/s1 && docker compose up -d keeper-1 keeper-2 keeper-3 \
 		ch-main-s1r1 ch-main-s1r2 ch-main-s2r1 ch-main-s2r2 \
-		ch-ext-s1r1
+		ch-ext-s1r1 ch-ext-s2r1
 	@echo "Waiting for nodes to become ready..."
 	sleep 12
 	bash scripts/bootstrap_s1.sh
