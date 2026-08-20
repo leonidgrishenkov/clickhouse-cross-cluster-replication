@@ -5,7 +5,7 @@
         s7-up s7-down s7-test s7-clean \
         clean down
 
-CH_VERSION := 25.8.30.16
+CH_VERSION := 26.3.17.110
 
 s1-up:
 	cd docker/s1 && docker compose up -d keeper-1 keeper-2 keeper-3 \

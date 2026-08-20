@@ -19,7 +19,7 @@ networks:
 
 services:
   keeper-main-1:
-    image: clickhouse/clickhouse-keeper:25.8.30.16
+    image: clickhouse/clickhouse-keeper:26.3.17.110
     container_name: s7-keeper-main-1
     hostname: keeper-main-1
     networks: [net-main, net-fetch]
@@ -29,7 +29,7 @@ services:
     cpus: 0.5
 
   ch-main:
-    image: clickhouse/clickhouse-server:25.8.30.16
+    image: clickhouse/clickhouse-server:26.3.17.110
     container_name: s7-ch-main
     hostname: ch-main
     networks: [net-main, net-fetch]
@@ -44,7 +44,7 @@ services:
       nofile: 262144
 
   keeper-ext-1:
-    image: clickhouse/clickhouse-keeper:25.8.30.16
+    image: clickhouse/clickhouse-keeper:26.3.17.110
     container_name: s7-keeper-ext-1
     hostname: keeper-ext-1
     networks: [net-ext]
@@ -54,7 +54,7 @@ services:
     cpus: 0.5
 
   ch-ext:
-    image: clickhouse/clickhouse-server:25.8.30.16
+    image: clickhouse/clickhouse-server:26.3.17.110
     container_name: s7-ch-ext
     hostname: ch-ext
     networks: [net-ext, net-fetch]

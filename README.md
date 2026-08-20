@@ -1,5 +1,15 @@
 # Cross-Cluster Replication in ClickHouse — Executive Summary
 
+> **Version note (post-research update)**: the Docker Compose files and
+> Makefile in this repo are now pinned to `clickhouse-server`/
+> `clickhouse-keeper` **26.3.17.110** (26.3 LTS). All measurements, findings,
+> and quoted output in this README, report.md, and LOG.md were produced
+> against **25.8.30.16** (25.8 LTS), the version pinned at the time the
+> research was actually run — they were NOT re-verified against 26.3.17.110.
+> Before relying on any specific number or error message here in a 26.3
+> context, re-run the relevant scenario; behavior, setting names, and error
+> codes may differ between LTS branches.
+
 **Question**: can a production ClickHouse cluster replicate data into a separate,
 maximally-isolated external cluster, using native mechanisms only?
 

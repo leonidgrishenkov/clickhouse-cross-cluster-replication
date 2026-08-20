@@ -1,5 +1,11 @@
 # Cross-Cluster Replication in ClickHouse — Full Report
 
+> **Version note (post-research update)**: Docker Compose files/Makefile in
+> this repo are pinned to `26.3.17.110` (26.3 LTS). Everything below —
+> every measurement, error message, and behavior described — was produced
+> against `25.8.30.16` (25.8 LTS), the version actually used when this
+> research was run. Nothing below has been re-verified on 26.3.17.110.
+
 ## 1. Scope, method, and environment
 
 **Goal**: determine whether ClickHouse's native mechanisms can replicate
