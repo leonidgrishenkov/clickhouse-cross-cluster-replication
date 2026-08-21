@@ -12,7 +12,7 @@ CREATE DATABASE IF NOT EXISTS db ON CLUSTER ext_cluster;
 -- --- main_cluster: replicated local table + distributed table ---
 -- run on any main_cluster node, e.g. s1-ch-main-s1r1
 
-CREATE TABLE db.events ON CLUSTER main_cluster
+CREATE TABLE db.events_local ON CLUSTER main_cluster
 (
     event_date Date,
     event_time DateTime,
@@ -24,13 +24,13 @@ ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/db/events', '{replica}'
 PARTITION BY toYYYYMM(event_date)
 ORDER BY (event_date, user_id);
 
-CREATE TABLE db.events_dist ON CLUSTER main_cluster AS db.events
-ENGINE = Distributed(main_cluster, db, events, rand());
+CREATE TABLE db.events ON CLUSTER main_cluster AS db.events_local
+ENGINE = Distributed(main_cluster, db, events_local, rand());
 
 -- --- ext_cluster: replicated local table ---
 -- run on any ext_cluster node, e.g. s1-ch-ext-s1r1
 
-CREATE TABLE db.events ON CLUSTER ext_cluster
+CREATE TABLE db.events_local ON CLUSTER ext_cluster
 (
     event_date Date,
     event_time DateTime,
@@ -46,17 +46,17 @@ ORDER BY (event_date, user_id);
 -- small (700MB) containers, so it was created per-node instead:
 
 -- run on s1-ch-ext-s1r1:
-CREATE TABLE db.events_dist AS db.events
-ENGINE = Distributed(ext_cluster, db, events, rand());
+CREATE TABLE db.events AS db.events_local
+ENGINE = Distributed(ext_cluster, db, events_local, rand());
 
 -- run on s1-ch-ext-s2r1:
-CREATE TABLE db.events_dist AS db.events
-ENGINE = Distributed(ext_cluster, db, events, rand());
+CREATE TABLE db.events AS db.events_local
+ENGINE = Distributed(ext_cluster, db, events_local, rand());
 
 -- --- Generate + insert 1000 test rows ---
 
 -- main_cluster: run on s1-ch-main-s1r1
-INSERT INTO db.events_dist
+INSERT INTO db.events
 SELECT
     toDate('2026-08-01') + toIntervalDay(rand() % 20) AS event_date,
     now() - toIntervalSecond(rand() % 100000) AS event_time,
@@ -66,7 +66,7 @@ SELECT
 FROM numbers(1000);
 
 -- ext_cluster: run on s1-ch-ext-s2r1 (s1-ch-ext-s1r1 was near its memory limit)
-INSERT INTO db.events_dist
+INSERT INTO db.events
 SELECT
     toDate('2026-08-01') + toIntervalDay(rand() % 20) AS event_date,
     now() - toIntervalSecond(rand() % 100000) AS event_time,
@@ -77,11 +77,11 @@ FROM numbers(1000);
 
 -- --- Verification queries ---
 
-SELECT count() FROM db.events_dist; -- run on any main_cluster node
-SELECT count() FROM db.events;      -- run per main_cluster node (s1r1, s1r2, s2r1, s2r2)
+SELECT count() FROM db.events; -- run on any main_cluster node
+SELECT count() FROM db.events_local;      -- run per main_cluster node (s1r1, s1r2, s2r1, s2r2)
 
-SELECT count() FROM db.events_dist; -- run on any ext_cluster node
-SELECT count() FROM db.events;      -- run per ext_cluster node (s1r1, s2r1)
+SELECT count() FROM db.events; -- run on any ext_cluster node
+SELECT count() FROM db.events_local;      -- run per ext_cluster node (s1r1, s2r1)
 
 -- ============================================================
 -- Test scenario: insert data into the local replicated table on
@@ -90,7 +90,7 @@ SELECT count() FROM db.events;      -- run per ext_cluster node (s1r1, s2r1)
 -- ============================================================
 
 -- run only on s1-ch-ext-s1r1:
-INSERT INTO db.events
+INSERT INTO db.events_local
 SELECT
     toDate('2026-08-20') AS event_date,
     now() AS event_time,
@@ -100,5 +100,5 @@ SELECT
 FROM numbers(5);
 
 -- verification: run on s1-ch-ext-s1r1 and s1-ch-ext-s2r1
-SELECT count() FROM db.events WHERE event_type = 'test_local_insert';
-SELECT count() FROM db.events;
+SELECT count() FROM db.events_local WHERE event_type = 'test_local_insert';
+SELECT count() FROM db.events_local;
