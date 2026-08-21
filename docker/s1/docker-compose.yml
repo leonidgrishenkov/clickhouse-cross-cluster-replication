@@ -42,8 +42,6 @@ services:
     networks: [net-main, net-repl]
     volumes:
       - ../common/keeper/keeper_1.xml:/etc/clickhouse-keeper/keeper_config.d/keeper.xml:ro
-    mem_limit: 300m
-    cpus: 0.5
 
   keeper-2:
     image: clickhouse/clickhouse-keeper:26.3.17.110
@@ -52,8 +50,6 @@ services:
     networks: [net-main, net-repl]
     volumes:
       - ../common/keeper/keeper_2.xml:/etc/clickhouse-keeper/keeper_config.d/keeper.xml:ro
-    mem_limit: 300m
-    cpus: 0.5
 
   keeper-3:
     image: clickhouse/clickhouse-keeper:26.3.17.110
@@ -62,8 +58,6 @@ services:
     networks: [net-main, net-repl]
     volumes:
       - ../common/keeper/keeper_3.xml:/etc/clickhouse-keeper/keeper_config.d/keeper.xml:ro
-    mem_limit: 300m
-    cpus: 0.5
 
   keeper-ext-1:
     image: clickhouse/clickhouse-keeper:26.3.17.110
@@ -72,8 +66,6 @@ services:
     networks: [net-ext, net-repl]
     volumes:
       - ../common/keeper-ext/keeper_ext_1.xml:/etc/clickhouse-keeper/keeper_config.d/keeper.xml:ro
-    mem_limit: 300m
-    cpus: 0.5
     profiles: ["s1c"]   # only started for the S1c split-keeper experiment
 
   ch-main-s1r1:
@@ -87,8 +79,6 @@ services:
       - ./config.d/macros-main-s1r1.xml:/etc/clickhouse-server/config.d/macros.xml:ro
       - ./users.d/users-main.xml:/etc/clickhouse-server/users.d/users.xml:ro
       - main-s1r1-data:/var/lib/clickhouse
-    mem_limit: 900m
-    cpus: 1.0
     ulimits:
       nofile: 262144
 
@@ -103,8 +93,6 @@ services:
       - ./config.d/macros-main-s1r2.xml:/etc/clickhouse-server/config.d/macros.xml:ro
       - ./users.d/users-main.xml:/etc/clickhouse-server/users.d/users.xml:ro
       - main-s1r2-data:/var/lib/clickhouse
-    mem_limit: 900m
-    cpus: 1.0
     ulimits:
       nofile: 262144
 
@@ -119,8 +107,6 @@ services:
       - ./config.d/macros-main-s2r1.xml:/etc/clickhouse-server/config.d/macros.xml:ro
       - ./users.d/users-main.xml:/etc/clickhouse-server/users.d/users.xml:ro
       - main-s2r1-data:/var/lib/clickhouse
-    mem_limit: 900m
-    cpus: 1.0
     ulimits:
       nofile: 262144
 
@@ -135,8 +121,6 @@ services:
       - ./config.d/macros-main-s2r2.xml:/etc/clickhouse-server/config.d/macros.xml:ro
       - ./users.d/users-main.xml:/etc/clickhouse-server/users.d/users.xml:ro
       - main-s2r2-data:/var/lib/clickhouse
-    mem_limit: 900m
-    cpus: 1.0
     ulimits:
       nofile: 262144
 
@@ -151,8 +135,6 @@ services:
       - ./config.d/macros-ext-s1r1.xml:/etc/clickhouse-server/config.d/macros.xml:ro
       - ./users.d/users-ext.xml:/etc/clickhouse-server/users.d/users.xml:ro
       - ext-s1r1-data:/var/lib/clickhouse
-    mem_limit: 700m
-    cpus: 1.0
     ulimits:
       nofile: 262144
 
@@ -167,8 +149,6 @@ services:
       - ./config.d/macros-ext-s2r1.xml:/etc/clickhouse-server/config.d/macros.xml:ro
       - ./users.d/users-ext.xml:/etc/clickhouse-server/users.d/users.xml:ro
       - ext-s2r1-data:/var/lib/clickhouse
-    mem_limit: 700m
-    cpus: 1.0
     ulimits:
       nofile: 262144
 
