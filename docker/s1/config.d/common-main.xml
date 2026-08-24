@@ -55,7 +55,6 @@
                 <internal_replication>true</internal_replication>
                 <replica><host>ch-main-s2r1</host><port>9000</port></replica>
                 <replica><host>ch-main-s2r2</host><port>9000</port></replica>
-                <replica><host>ch-ext-s2r1</host><port>9000</port></replica>
             </shard>
         </all_nodes_ddl>
     </remote_servers>

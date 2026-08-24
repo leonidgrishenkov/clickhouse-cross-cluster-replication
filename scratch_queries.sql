@@ -42,20 +42,13 @@ ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/db/events', '{replica}'
 PARTITION BY toYYYYMM(event_date)
 ORDER BY (event_date, user_id);
 
--- ext_cluster distributed table: ON CLUSTER hit MEMORY_LIMIT_EXCEEDED on these
--- small (700MB) containers, so it was created per-node instead:
-
--- run on s1-ch-ext-s1r1:
-CREATE TABLE db.events AS db.events_local
-ENGINE = Distributed(ext_cluster, db, events_local, rand());
-
--- run on s1-ch-ext-s2r1:
-CREATE TABLE db.events AS db.events_local
+-- ext_cluster distributed table
+CREATE TABLE db.events on cluster ext_cluster AS db.events_local
 ENGINE = Distributed(ext_cluster, db, events_local, rand());
 
 -- --- Generate + insert 1000 test rows ---
 
--- main_cluster: run on s1-ch-main-s1r1
+-- main_cluster
 INSERT INTO db.events
 SELECT
     toDate('2026-08-01') + toIntervalDay(rand() % 20) AS event_date,
@@ -65,7 +58,7 @@ SELECT
     round(randCanonical() * 1000, 2) AS value
 FROM numbers(1000);
 
--- ext_cluster: run on s1-ch-ext-s2r1 (s1-ch-ext-s1r1 was near its memory limit)
+-- ext_cluster
 INSERT INTO db.events
 SELECT
     toDate('2026-08-01') + toIntervalDay(rand() % 20) AS event_date,

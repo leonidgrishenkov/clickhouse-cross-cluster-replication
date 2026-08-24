@@ -23,15 +23,12 @@
         <password>s1_interserver_secret_change_me</password>
     </interserver_http_credentials>
 
+    <!-- ext_cluster: single shard, single replica (ch-ext-s2r1 removed) -->
     <remote_servers>
         <ext_cluster>
             <shard>
                 <internal_replication>true</internal_replication>
                 <replica><host>ch-ext-s1r1</host><port>9000</port></replica>
-            </shard>
-            <shard>
-                <internal_replication>true</internal_replication>
-                <replica><host>ch-ext-s2r1</host><port>9000</port></replica>
             </shard>
         </ext_cluster>
     </remote_servers>

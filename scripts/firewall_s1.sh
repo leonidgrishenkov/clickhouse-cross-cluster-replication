@@ -15,7 +15,7 @@
 # against a main-cluster node.
 set -euo pipefail
 
-EXT_IPS=(172.20.0.9 172.20.0.10)      # ch-ext-s1r1, ch-ext-s2r1
+EXT_IPS=(172.20.0.9)                  # ch-ext-s1r1
 MAIN_IPS=(172.20.0.5 172.20.0.6 172.20.0.7 172.20.0.8)  # ch-main-*
 KEEPER_IPS=(172.20.0.2 172.20.0.3 172.20.0.4)           # keeper-1/2/3
 
