@@ -31,5 +31,33 @@
                 <replica><host>ch-ext-s1r1</host><port>9000</port></replica>
             </shard>
         </ext_cluster>
+
+        <!-- Scenario 6: read-only "DBLink" into the main cluster. The ext node
+             is not a replica of anything here; it only forwards queries under
+             a read-only account. Credentials live in this file. -->
+        <main_link>
+            <shard>
+                <internal_replication>true</internal_replication>
+                <replica>
+                    <host>ch-main-s1r1</host><port>9000</port>
+                    <user>ro_export_user</user><password>ro_export_pw_change_me</password>
+                </replica>
+                <replica>
+                    <host>ch-main-s1r2</host><port>9000</port>
+                    <user>ro_export_user</user><password>ro_export_pw_change_me</password>
+                </replica>
+            </shard>
+            <shard>
+                <internal_replication>true</internal_replication>
+                <replica>
+                    <host>ch-main-s2r1</host><port>9000</port>
+                    <user>ro_export_user</user><password>ro_export_pw_change_me</password>
+                </replica>
+                <replica>
+                    <host>ch-main-s2r2</host><port>9000</port>
+                    <user>ro_export_user</user><password>ro_export_pw_change_me</password>
+                </replica>
+            </shard>
+        </main_link>
     </remote_servers>
 </clickhouse>
