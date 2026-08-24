@@ -44,9 +44,17 @@ SELECT name, value, default FROM system.settings WHERE name LIKE '%query_cache%'
 
 -- ============================================================
 -- PHASE 1 — two ways to build the DBLink, and they are not equivalent
+--           1a (view over remote()) was REJECTED after this phase and its
+--           objects were dropped; it is kept here only as the record of what
+--           was run. Everything from PHASE 2 on was (re-)measured against the
+--           1b Distributed link, with the refreshable MVs of the previous
+--           scenario stopped (they had resumed after an ext restart and were
+--           polling main every 10s, which contaminated the first round of
+--           numbers). One user query over this link = 2 subqueries on main,
+--           one per shard.
 -- ============================================================
 
--- ---- 1a. view over remote() + named collection ----
+-- ---- 1a. view over remote() + named collection  [REJECTED, see PHASE 8] ----
 -- ch-ext-s1r1  (named collection main_src already exists:
 --   CREATE NAMED COLLECTION main_src AS host='ch-main-s1r1:9000',
 --       user='ro_export_user', password='***')
@@ -71,6 +79,7 @@ SELECT count() FROM ext.link_events;
 -- => a plain view runs with INVOKER rights: every reader would need the
 --    named-collection grant, i.e. the ability to call remote() themselves.
 
+-- (both views were dropped again once 1a was rejected)
 CREATE VIEW ext.link_events_definer
 DEFINER = default SQL SECURITY DEFINER
 AS SELECT ts, user_id, event_type, value, ingested_at
@@ -115,68 +124,68 @@ SELECT count() FROM ext.link_events_dist;                       -- 12000
 -- ============================================================
 
 -- as bi_user, twice, with the profile exactly as proposed:
-SELECT event_type, count() FROM ext.link_events_definer WHERE value > 11
+SELECT event_type, count() FROM ext.link_events_dist WHERE value > 501
 GROUP BY event_type ORDER BY event_type;
--- ext query_log: hits=0 misses=1 (105 ms), hits=0 misses=1 (68 ms)
--- main query_log: 2 SELECTs
+-- ext query_log: hits=0 misses=1 (41 ms), hits=0 misses=1 (20 ms)
+-- main: 4 subqueries (both queries went to the source)
 -- => query_cache_min_query_duration = 1000 disables the cache for every query
---    that this link produces: the link queries run in 35-105 ms.
+--    that this link produces: the link queries run in 20-41 ms.
 
 -- same query with the gate lowered:
-SELECT event_type, count() FROM ext.link_events_definer WHERE value > 12
+SELECT event_type, count() FROM ext.link_events_dist WHERE value > 502
 GROUP BY event_type ORDER BY event_type SETTINGS query_cache_min_query_duration = 0;
--- ext query_log: hits=0 misses=1 (84 ms), then hits=1 misses=0 (8 ms)
--- main query_log: 1 SELECT
+-- ext query_log: hits=0 misses=1 (25 ms), then hits=1 misses=0 (1 ms)
+-- main: 2 subqueries (only the first query)
 -- => the hypothesis holds: the repeat query does not reach the main cluster at all.
 
 SELECT query, key_hash, expires_at, stale, shared, compressed FROM system.query_cache;
 -- expires_at = now + 300 (the profile TTL), stale=0, shared=0, compressed=1
 
 -- the better gate for "don't cache one-off queries": count runs, not milliseconds
-SELECT count() FROM ext.link_events_definer WHERE value > 21
+SELECT count() FROM ext.link_events_dist WHERE value > 503
 SETTINGS query_cache_min_query_duration = 0, query_cache_min_query_runs = 2;
--- run 1: miss, run 2: miss, run 3: miss (this one writes), run 4: hit
--- 4 runs -> 3 SELECTs on main
+-- run 1: miss (27 ms), run 2: miss (18 ms), run 3: miss (35 ms, this one
+-- writes), run 4: hit (1 ms) -> 6 subqueries on main
 
 -- the cache key is the AST, not the text: reformatting still hits
-SELECT count() FROM ext.link_events_definer WHERE value > 22 SETTINGS query_cache_min_query_duration = 0;
+SELECT count() FROM ext.link_events_dist WHERE value > 504 SETTINGS query_cache_min_query_duration = 0;
 SELECT
        count()
-   FROM ext.link_events_definer
-   WHERE value > 22
+   FROM ext.link_events_dist
+   WHERE value > 504
    SETTINGS query_cache_min_query_duration = 0;
--- 2 runs -> 1 SELECT on main, second query hits (1 ms)
+-- 2 runs -> 2 subqueries on main, second query hits (1 ms)
 
 
 -- ============================================================
 -- PHASE 3 — TTL and staleness
 -- ============================================================
 
-SELECT count() FROM ext.link_events_definer WHERE value > 31
+SELECT count() FROM ext.link_events_dist WHERE value > 801
 SETTINGS query_cache_min_query_duration = 0, query_cache_ttl = 15;
 
-SELECT expires_at, stale, now() FROM system.query_cache WHERE query LIKE '%value > 31%';
--- 2026-08-24 11:33:28  0  2026-08-24 11:33:13
+SELECT expires_at, stale, now() FROM system.query_cache WHERE query LIKE '%value > 801%';
+-- 2026-08-24 14:48:52  0  2026-08-24 14:48:37
 -- ... 17 seconds later ...
--- 2026-08-24 11:33:28  1  2026-08-24 11:33:31     <- stale = 1, still listed
--- re-running it: 1 SELECT on main again
+-- 2026-08-24 14:48:52  1  2026-08-24 14:48:54     <- stale = 1, still listed
+-- re-running it: 2 subqueries on main again
 
 -- staleness is the whole trade-off:
-SELECT count() FROM ext.link_events_definer SETTINGS query_cache_min_query_duration = 0, query_cache_tag = 'events_dash';
--- 11700
+SELECT count() FROM ext.link_events_dist SETTINGS query_cache_min_query_duration = 0, query_cache_tag = 'events_dash';
+-- 12000
 -- (meanwhile, on ch-main-s1r1)
 INSERT INTO default.events_distributed (ts, user_id, event_type, value, ingested_at)
-SELECT now(), 7, 'cache_probe', 9.0, now() FROM numbers(300);
--- main now: 12000
-SELECT count() FROM ext.link_events_definer SETTINGS query_cache_min_query_duration = 0, query_cache_tag = 'events_dash';
--- 11700   <- readers keep seeing the old number for up to TTL seconds
+SELECT now(), 8, 'cache_probe2', 9.5, now() FROM numbers(400);
+-- main now: 12400
+SELECT count() FROM ext.link_events_dist SETTINGS query_cache_min_query_duration = 0, query_cache_tag = 'events_dash';
+-- 12000   <- readers keep seeing the old number for up to TTL seconds
 
 -- targeted invalidation
 SELECT extract(query,'FROM [a-z_.]+') AS q, tag FROM system.query_cache;
--- FROM ext.link_events_definer   events_dash
+-- FROM ext.link_events_dist   events_dash
 SYSTEM DROP QUERY CACHE TAG 'events_dash';
-SELECT count() FROM ext.link_events_definer SETTINGS query_cache_min_query_duration = 0, query_cache_tag = 'events_dash';
--- 12000
+SELECT count() FROM ext.link_events_dist SETTINGS query_cache_min_query_duration = 0, query_cache_tag = 'events_dash';
+-- 12400
 
 
 -- ============================================================
@@ -184,22 +193,22 @@ SELECT count() FROM ext.link_events_definer SETTINGS query_cache_min_query_durat
 -- ============================================================
 
 CREATE USER bi_user2 IDENTIFIED WITH sha256_password BY 'bi_pw2' SETTINGS PROFILE external_readers;
-GRANT SELECT ON ext.link_events_definer TO bi_user2;
+GRANT SELECT ON ext.link_events_dist TO bi_user2;
 
 -- user A warms, user B repeats the identical query:
--- A: hits=0 misses=1 (61 ms)   B: hits=0 misses=1 (57 ms)  -> 2 SELECTs on main
+-- A: hits=0 misses=1 (61 ms)   B: hits=0 misses=1 (57 ms)  -> both went to main
 SELECT count() FROM system.query_cache WHERE query LIKE '%value > 41%';   -- 1
 
 -- and B never gets its own entry while A owns the key:
--- 3 more runs by B -> 3 more SELECTs on main, still 1 entry in the cache.
+-- 3 more runs by B -> 3 more trips to main, still 1 entry in the cache.
 -- => it is not "every user warms its own copy". Exactly one user is served
 --    from cache; everybody else always goes to the source.
 
 -- sharing is decided by the WRITER, the reader needs nothing:
-SELECT count() FROM ext.link_events_definer WHERE value > 51
+SELECT count() FROM ext.link_events_dist WHERE value > 851
 SETTINGS query_cache_min_query_duration = 0, query_cache_share_between_users = 1;   -- as bi_user
-SELECT query, shared FROM system.query_cache WHERE query LIKE '%value > 51%';        -- shared = 1
--- bi_user2 then hits it (2-4 ms) with or without the setting.
+SELECT query, shared FROM system.query_cache WHERE query LIKE '%value > 851%';       -- shared = 1
+-- bi_user2 then hits it (1 ms) WITHOUT setting query_cache_share_between_users.
 
 
 -- ============================================================
@@ -246,12 +255,14 @@ DROP ROW POLICY rp_local ON ext.events;
 --           (the Distributed link sends one subquery per shard)
 -- ============================================================
 
--- A) use_query_cache = 0                          -> main: 32   ext hits/misses: 0/0
--- B) cache on, default per-user isolation         -> main: 24   ext hits/misses: 4/11
+-- A) use_query_cache = 0                          -> main: 30   ext hits/misses: 0/0
+-- B) cache on, default per-user isolation         -> main: 22   ext hits/misses: 4/11
 -- C) cache on, query_cache_share_between_users=1  -> main:  2   ext hits/misses: 14/1
 -- D) same 15 queries from ONE technical user      -> main:  2   ext hits/misses: 14/1
--- => per-user isolation buys ~25%. A single technical account (or the unsafe
---    sharing flag) buys ~94%. There is no middle ground.
+-- A is the arithmetic baseline: 15 queries x 2 shards. B = 2 (user A's single
+-- miss) + 10 + 10, i.e. only user A is ever served from cache.
+-- => per-user isolation buys ~27%. A single technical account (or the unsafe
+--    sharing flag) buys ~93%. There is no middle ground.
 
 
 -- ============================================================
@@ -276,7 +287,7 @@ CREATE SETTINGS PROFILE quota_probe SETTINGS
 -- => the quota silently starves every query after the first.
 
 -- c) non-deterministic functions - the DEFAULT is an ERROR, not "no caching"
-SELECT now() AS t, count() FROM ext.link_events_definer
+SELECT now() AS t, count() FROM ext.link_events_dist
 SETTINGS use_query_cache = 1, query_cache_min_query_duration = 0;
 -- Code: 704. The query result was not cached because the query contains a
 -- non-deterministic function. Use setting
@@ -310,22 +321,21 @@ CREATE SETTINGS PROFILE external_readers_ro SETTINGS
     query_cache_min_query_duration = 0,
     query_cache_nondeterministic_function_handling = 'save';
 CREATE USER bi_ro IDENTIFIED WITH sha256_password BY 'ro_pw' SETTINGS PROFILE external_readers_ro;
-GRANT SELECT ON ext.link_events_definer, ext.events TO bi_ro;
+GRANT SELECT ON ext.link_events_dist, ext.events TO bi_ro;
 
 SELECT count() FROM ext.events;                     -- 10615, local table is fine
-SELECT count() FROM ext.link_events_definer;
--- Code: 164. default: Cannot execute query in readonly mode. (READONLY)
--- => readonly = 1 kills the remote() link. Note the user name in the message:
---    it is the DEFINER's execution that is refused.
-
-GRANT SELECT ON ext.link_events_dist TO bi_ro;
 SELECT count() FROM ext.link_events_dist;           -- 12000, twice: miss 36 ms, hit 1 ms
--- => the Distributed-table link works under readonly = 1. It is a table, not a
---    table function.
+-- => the Distributed link works under readonly = 1, and the profile still turns
+--    the cache on for it. Downside: such a user cannot pass ANY settings, and
+--    BI tools that send their own (max_execution_time and friends) get Code 164.
+-- (this is also what killed variant 1a: the same profile against the remote()
+--  view failed with
+--   Code: 164. default: Cannot execute query in readonly mode. (READONLY)
+--  - the refusal is the DEFINER's execution, not the caller's.)
 
--- readonly = 2 lets the remote() link work, but then users can also opt out:
+-- readonly = 2 lets users change settings again, so they can also opt out:
 CREATE SETTINGS PROFILE external_readers_ro2 SETTINGS readonly = 2, use_query_cache = 1, ...;
-SELECT count() FROM ext.link_events_definer SETTINGS use_query_cache = 0;   -- allowed
+SELECT count() FROM ext.link_events_dist SETTINGS use_query_cache = 0;   -- 12400, allowed
 
 -- pinning individual settings is the actual answer:
 CREATE SETTINGS PROFILE external_readers_const SETTINGS
@@ -334,11 +344,11 @@ CREATE SETTINGS PROFILE external_readers_const SETTINGS
     query_cache_ttl = 300,
     query_cache_min_query_duration = 0,
     query_cache_nondeterministic_function_handling = 'save' CONST;
-SELECT count() FROM ext.link_events_definer WHERE value > 91;                       -- 919
-SELECT count() FROM ext.link_events_definer WHERE value > 91 SETTINGS use_query_cache = 0;
+SELECT count() FROM ext.link_events_dist WHERE value > 802;                         -- 0
+SELECT count() FROM ext.link_events_dist WHERE value > 802 SETTINGS use_query_cache = 0;
 -- Code: 452. Setting use_query_cache should not be changed. (SETTING_CONSTRAINT_VIOLATION)
-SELECT count() FROM ext.link_events_definer WHERE value > 91 SETTINGS query_cache_ttl = 3600;
--- 919   <- non-CONST settings stay overridable on purpose
+SELECT count() FROM ext.link_events_dist WHERE value > 802 SETTINGS query_cache_ttl = 3600;
+-- 0     <- non-CONST settings stay overridable on purpose
 
 
 -- ============================================================
@@ -346,12 +356,12 @@ SELECT count() FROM ext.link_events_definer WHERE value > 91 SETTINGS query_cach
 -- ============================================================
 
 -- the cache keeps serving while the source cluster is unreachable
--- (warm one query, then: docker stop s1-ch-main-s1r1)
-SELECT event_type, count() FROM ext.link_events_definer GROUP BY event_type ORDER BY event_type
+-- (warm one query, then: docker stop s1-ch-main-s1r1 s1r2 s2r1 s2r2 - all four)
+SELECT event_type, count() FROM ext.link_events_dist GROUP BY event_type ORDER BY event_type
 SETTINGS query_cache_min_query_duration = 0, query_cache_ttl = 600;
--- full result, served from cache with the source down
-SELECT count() FROM ext.link_events_definer WHERE value > 61 SETTINGS query_cache_min_query_duration = 0;
--- Code: 519. All attempts to get table structure failed.
+-- full result, served from cache with the whole source cluster down
+SELECT count() FROM ext.link_events_dist WHERE value > 901 SETTINGS query_cache_min_query_duration = 0;
+-- Code: 279. All connection tries failed.
 
 -- the cache is in-process: it does not survive a restart
 SELECT count() FROM system.query_cache;             -- 11 entries, QueryCacheBytes = 21776
@@ -374,7 +384,7 @@ SELECT event, value FROM system.events WHERE event LIKE 'QueryCache%';
 -- SUMMARY
 -- ============================================================
 -- 1. The hypothesis holds, with a caveat about who is asking. A repeated
---    identical query is served entirely on the ext node: 36-105 ms -> 1-8 ms,
+--    identical query is served entirely on the ext node: 20-41 ms -> 1 ms,
 --    and zero queries reach the main cluster.
 -- 2. The proposed profile as written caches NOTHING: link queries take tens of
 --    milliseconds, and query_cache_min_query_duration = 1000 gates them all out.
@@ -387,8 +397,8 @@ SELECT event, value FROM system.events WHERE event LIKE 'QueryCache%';
 --    "last hour" window silently stops rolling.
 -- 4. Per-user isolation is worse than "each user warms its own copy": while one
 --    user owns the key, other users' results are never cached at all. Measured
---    over 3 users x 5 identical queries: 32 -> 24 source subqueries (~25%).
---    A single technical account gives 32 -> 2 (~94%).
+--    over 3 users x 5 identical queries: 30 -> 22 source subqueries (~27%).
+--    A single technical account gives 30 -> 2 (~93%).
 -- 5. query_cache_share_between_users = 1 is not merely "not recommended": it
 --    serves cached results to users with no grant on the table and bypasses row
 --    policies (10915 instead of 1843). On a multi-tenant external node it is an
@@ -398,10 +408,12 @@ SELECT event, value FROM system.events WHERE event LIKE 'QueryCache%';
 --    max_entry_size_in_bytes (1 MiB), per-user quotas (query_cache_max_entries /
 --    max_size_in_bytes), and 'ignore' handling. Oversized results are still
 --    serialized on every run and then discarded.
--- 7. Implementation choice matters: a view over remote() keeps credentials in a
---    named collection but needs SQL SECURITY DEFINER and is incompatible with
---    readonly = 1; a Distributed table over a cluster declared in the ext config
---    works under readonly = 1 but puts the source password into the config file.
+-- 7. Implementation: the link is a Distributed table over a cluster declared in
+--    the ext config. It works under readonly = 1 and needs only GRANT SELECT,
+--    but puts the source password into the config file. The rejected
+--    alternative (a view over remote() + named collection) keeps credentials
+--    out of the config but needs SQL SECURITY DEFINER and breaks under
+--    readonly = 1.
 -- 8. Pin the settings with CONST in the profile; readonly alone does not do it
 --    (readonly = 2 still lets users change settings, readonly = 1 breaks the
 --    remote() link entirely).
