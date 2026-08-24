@@ -23,6 +23,17 @@
         <password>s1_interserver_secret_change_me</password>
     </interserver_http_credentials>
 
+    <!-- Scenario 6: query cache sizing. Defaults are 1 GiB / 1024 entries /
+         1 MiB per entry / 30M rows per entry; the 1 MiB per-entry limit is the
+         one that silently drops BI-sized results, so it is raised the most.
+         The limits are caps, not preallocation. -->
+    <query_cache>
+        <max_size_in_bytes>2147483648</max_size_in_bytes>          <!-- 2 GiB  -->
+        <max_entries>8192</max_entries>
+        <max_entry_size_in_bytes>67108864</max_entry_size_in_bytes> <!-- 64 MiB -->
+        <max_entry_size_in_rows>100000000</max_entry_size_in_rows>
+    </query_cache>
+
     <!-- ext_cluster: single shard, single replica (ch-ext-s2r1 removed) -->
     <remote_servers>
         <ext_cluster>
@@ -59,5 +70,22 @@
                 </replica>
             </shard>
         </main_link>
+
+        <!-- Same source cluster, but declared as ONE shard: reference tables on
+             main (dim_users) are replicated to every node, so reading them over
+             main_link would return each row once per shard. -->
+        <main_link_ref>
+            <shard>
+                <internal_replication>true</internal_replication>
+                <replica><host>ch-main-s1r1</host><port>9000</port>
+                    <user>ro_export_user</user><password>ro_export_pw_change_me</password></replica>
+                <replica><host>ch-main-s1r2</host><port>9000</port>
+                    <user>ro_export_user</user><password>ro_export_pw_change_me</password></replica>
+                <replica><host>ch-main-s2r1</host><port>9000</port>
+                    <user>ro_export_user</user><password>ro_export_pw_change_me</password></replica>
+                <replica><host>ch-main-s2r2</host><port>9000</port>
+                    <user>ro_export_user</user><password>ro_export_pw_change_me</password></replica>
+            </shard>
+        </main_link_ref>
     </remote_servers>
 </clickhouse>
