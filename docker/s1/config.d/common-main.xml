@@ -23,6 +23,10 @@
         <password>s1_interserver_secret_change_me</password>
     </interserver_http_credentials>
 
+    <!-- main_cluster only: the main nodes' config names no ext hosts at all.
+         The former "all_nodes_ddl" cluster (main + ext, used once to test
+         ON CLUSTER propagation into the ext cluster) was removed - nothing
+         is created on ext from here. -->
     <remote_servers>
         <main_cluster>
             <shard>
@@ -36,26 +40,5 @@
                 <replica><host>ch-main-s2r2</host><port>9000</port></replica>
             </shard>
         </main_cluster>
-        <!--
-          "all_nodes_ddl" deliberately includes the ext nodes too. It exists
-          ONLY to test the documented DDL-propagation fix (S1 "DDL" bullet):
-          ON CLUSTER all_nodes_ddl reaches ext nodes as well as main nodes.
-          Using it is an explicit, recorded isolation trade-off: main node
-          config now names ext hostnames. Not used by default; only invoked
-          in the DDL-propagation test in report.md.
-        -->
-        <all_nodes_ddl>
-            <shard>
-                <internal_replication>true</internal_replication>
-                <replica><host>ch-main-s1r1</host><port>9000</port></replica>
-                <replica><host>ch-main-s1r2</host><port>9000</port></replica>
-                <replica><host>ch-ext-s1r1</host><port>9000</port></replica>
-            </shard>
-            <shard>
-                <internal_replication>true</internal_replication>
-                <replica><host>ch-main-s2r1</host><port>9000</port></replica>
-                <replica><host>ch-main-s2r2</host><port>9000</port></replica>
-            </shard>
-        </all_nodes_ddl>
     </remote_servers>
 </clickhouse>
